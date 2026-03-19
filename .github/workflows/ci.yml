@@ -147,3 +147,121 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: release/libWellspring.1.dylib
+
+  ios-tvos:
+    name: iOS/tvOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - platform: iOS
+            sdk: iphoneos
+            architectures: arm64
+          - platform: tvOS
+            sdk: appletvos
+            architectures: arm64
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Clone SDL3
+      run: git clone --depth 1 --branch release-$SDL3_VERSION https://github.com/libsdl-org/SDL.git
+
+    - name: Install dependencies
+      run: brew install ninja
+
+    - name: Build SDL3 (Debug)
+      run: |
+        cd SDL
+        cmake -B debug -G Ninja . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_SYSTEM_NAME=${{ matrix.platform }} -DCMAKE_OSX_ARCHITECTURES="${{ matrix.architectures }}" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=`xcodebuild -version -sdk ${{ matrix.sdk }} Path`
+        ninja -C debug
+        cd ..
+
+    - name: CMake configure (Debug)
+      run: cmake -B debug -G Ninja . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_SYSTEM_NAME=${{ matrix.platform }} -DCMAKE_OSX_ARCHITECTURES="${{ matrix.architectures }}" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=`xcodebuild -version -sdk ${{ matrix.sdk }} Path` -DSDL3_DIR=${GITHUB_WORKSPACE}/SDL/debug -DBUILD_SHARED_LIBS=OFF
+
+    - name: Build (Debug)
+      run: ninja -C debug
+
+    - name: CMake configure (Release)
+      run: cmake -B release -G Ninja . -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=${{ matrix.platform }} -DCMAKE_OSX_ARCHITECTURES="${{ matrix.architectures }}" -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_SYSROOT=`xcodebuild -version -sdk ${{ matrix.sdk }} Path` -DSDL3_DIR=${GITHUB_WORKSPACE}/SDL/debug -DBUILD_SHARED_LIBS=OFF
+
+    - name: Build (Release)
+      run: ninja -C release
+
+    - name: Archive build result
+      uses: actions/upload-artifact@v4
+      with:
+        name: Wellspring-${{ matrix.sdk }}
+        path: release/*.a
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r28c
+
+    - name: Clone SDL3
+      run: git clone --depth 1 --branch release-$SDL3_VERSION https://github.com/libsdl-org/SDL.git
+
+    - name: Build SDL3
+      run: |
+        cd SDL
+        ./build-scripts/androidbuildlibs.sh
+        cd ..
+
+    - name: Configure CMake (Release)
+      run: cmake -B release -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$(dirname $(which ndk-build))/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DSDL3_INCLUDE_DIRS=${GITHUB_WORKSPACE}/SDL/include -DSDL3_LIBRARIES=${GITHUB_WORKSPACE}/SDL/build/android/lib/arm64-v8a/libSDL3.so
+
+    - name: Build (Release)
+      run: cmake --build release/ --config Release
+
+    - name: Archive build result
+      uses: actions/upload-artifact@v4
+      with:
+        name: Wellspring-android-arm64
+        path: release/*.so
+
+  uwp:
+    name: UWP
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: Wellspring
+
+      - name: Checkout SDL3-uwp
+        uses: actions/checkout@v4
+        with:
+          repository: FNA-NET/SDL3-uwp
+          path: SDL3-uwp
+          ref: fna-net-patch
+
+      - name: Build SDL3-uwp
+        run: msbuild SDL3-uwp/VisualC-WinRT/SDL-UWP.sln /m /p:BuildInParallel=true /p:Configuration=Release /p:Platform=x64
+
+      - name: Build
+        run: msbuild Wellspring/visualc-winrt/Wellspring.sln /p:BuildInParallel=true /p:configuration=release /p:platform=x64
+
+      - name: Archive build result
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wellspring-UWP-x64
+          path: |
+            Wellspring/visualc-winrt/x64/Release/Wellspring/*.dll
+            Wellspring/visualc-winrt/x64/Release/Wellspring/*.pri

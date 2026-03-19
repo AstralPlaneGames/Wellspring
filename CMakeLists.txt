@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(Wellspring C)
-find_package(SDL3 REQUIRED)
+if(NOT (DEFINED SDL3_INCLUDE_DIRS AND DEFINED SDL3_LIBRARIES))
+	find_package(SDL3 REQUIRED)
+endif()
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
 
@@ -67,7 +69,12 @@ set_target_properties(Wellspring PROPERTIES OUTPUT_NAME "Wellspring"
 )
 
 # SDL3 Dependency
-target_link_libraries(Wellspring
-	SDL3::SDL3
-	SDL3::Headers
-)
+if(DEFINED SDL3_INCLUDE_DIRS AND DEFINED SDL3_LIBRARIES)
+	target_include_directories(Wellspring PRIVATE ${SDL3_INCLUDE_DIRS})
+	target_link_libraries(Wellspring ${SDL3_LIBRARIES})
+else()
+	target_link_libraries(Wellspring
+		SDL3::SDL3
+		SDL3::Headers
+	)
+endif()

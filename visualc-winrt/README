@@ -1,0 +1,20 @@
+ Building Wellspring for UWP
+---------------------------
+Wellspring uses Visual Studio 2022 to build for UWP (Xbox One / Windows 10).
+
+Dependencies
+------------
+Before building, download SDL3's UWP source code:
+
+https://github.com/FNA-NET/SDL3-uwp
+
+The SDL3-uwp repository should be checked out as a sibling directory to Wellspring:
+
+  SDL3-uwp/
+  Wellspring/
+
+Compiling
+---------
+1. Build SDL3-uwp/VisualC-WinRT/SDL-UWP.sln
+2. Build Wellspring.sln
+3. Grab Wellspring.dll and SDL3.dll, ship it!
